@@ -1,0 +1,1 @@
+/Users/imslavko/work/meteor/packages/miniredis/miniredis-tests.js
