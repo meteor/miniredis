@@ -1,6 +1,7 @@
 // A copy-on-write IdMap
 // Avoids deep-copying all the objects in a collection; we instead keep
 // a separate map just of the objects we've changed.
+// This does rely on the caller not changing objects return from get.
 CowIdMap = function (original) {
   var self = this;
 
@@ -33,6 +34,8 @@ CowIdMap.prototype.has = function (key) {
   }
 };
 
+// Do not change the returned value.
+// Instead, copy and set.
 CowIdMap.prototype.get = function (key) {
   var self = this;
 
