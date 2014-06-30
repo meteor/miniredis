@@ -214,7 +214,7 @@ Miniredis.RedisStore.prototype.resumeObservers = function () {
 };
 
 var callInCallbackAndReturn = function (res, cb) {
-  cb && Meteor.defer(function () { cb(null, res); });
+  cb && Meteor.defer(function () { cb(undefined, res); });
   return res;
 };
 
