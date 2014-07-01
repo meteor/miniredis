@@ -67,6 +67,22 @@ Redis.matching("key-2-*").observe({
 `observeChanges` is also implemented but it is not very different from the
 `observe` version as of yet.
 
+You can pause/resume observers with the same API as of Minimongo:
+
+```javascript
+// Pause observers
+Redis.pauseObservers();
+// Batch the updates
+_.each(removedValues, function (value, key) {
+  Redis.del(key);
+});
+_.each(newValues, function (value, key) {
+  Redis.set(key, value);
+});
+// Resume
+Redis.resumeObservers();
+```
+
 ## Blaze compitability
 
 Miniredis's cursors can be observed by [Blaze](http://meteor.github.io/blaze):
