@@ -51,7 +51,7 @@ var translateToOrderedCallbacks = function (orderedCallbacks) {
   return {
     added: function (doc) {
       var pos = insPos(queryResult, doc._id);
-      var before = queryResult[pos];
+      var before = pos === queryResult.length ? null : queryResult[pos];
       queryResult.splice(pos, 0, doc._id);
       orderedCallbacks.addedAt && orderedCallbacks.addedAt(doc, pos, before);
     },
@@ -130,7 +130,13 @@ _.extend(Miniredis.Cursor.prototype, {
     var redisStore = self.redisStore;
     redisStore.observes.push(observeRecord);
 
-    _.each(redisStore.patternFetch(self.pattern), function (kv) {
+    // XXX it is very important here to sort things in the same order they would
+    // be sorted by the query definition (right now there is only one default
+    // order).
+    var docsInOrder = redisStore.patternFetch(self.pattern).sort(function (a, b) {
+      return a.key.localeCompare(b.key);
+    });
+    _.each(docsInOrder, function (kv) {
       callbacks.added && callbacks.added({ _id: kv.key, value: kv.value  });
     });
 
