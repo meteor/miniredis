@@ -672,62 +672,6 @@ _.extend(Miniredis.RedisStore.prototype, {
     var val = self.get(key);
     var len = val ? val.length : 0;
     return callInCallbackAndReturn(len, cb);
-  },
-
-  // -----
-  // operators on hashes
-  // -----
-
-  hgetall: function (key, cb) {
-    var self = this;
-    if (! self._has(key)) {
-      return callInCallbackAndReturn(undefined, cb);
-    }
-    var val = self._get(key);
-    if (! _.isObject(val)) {
-      throwIncorrectKindOfValueError(cb);
-      return;
-    }
-    return callInCallbackAndReturn(EJSON.clone(val), cb);
-  },
-
-  hmset: function (key, o, cb) {
-    var self = this;
-    if (! _.isObject(o)) {
-      throwIncorrectKindOfValueError(cb);
-    }
-    var val = {};
-    _.each(_.keys(o), function (key) {
-      val[key.toString()] = o[key].toString();
-    });
-    self._set(key, val);
-    return callInCallbackAndReturn(undefined, cb);
-  },
-
-  hincrby: function (key, field, delta, cb) {
-    var self = this;
-    var o = self._has(key) ? self._get(key) : {};
-
-    if (! _.isObject(o)) {
-      throwIncorrectKindOfValueError(cb);
-      return;
-    }
-
-    var val = _.has(o, field) ? o[field] : 0;
-    // cast to integer
-    var newVal = val |0;
-
-    if (val !== newVal.toString()) {
-      callInCallbackOrThrow(
-        new Error("Value is not an integer or out of range"), cb);
-    }
-
-    newVal += delta;
-    var newObj = EJSON.clone(o);
-    newObj[field] = newVal.toString();
-    self._set(key, newObj);
-
-    return callInCallbackAndReturn(newVal, cb);
   }
 });
 
@@ -843,6 +787,142 @@ _.each(["lpush", "rpush", "lpop", "rpop", "lindex", "linsert", "lrange",
            var copy = list.clone();
            var res = Miniredis.List.prototype[method].apply(copy, args);
            self._set(key, copy);
+           return callInCallbackAndReturn(res, cb);
+         };
+       });
+
+// Hash implementation
+Miniredis.Hash = function () {
+  var self = this;
+  self._map = {};
+};
+
+_.extend(Miniredis.Hash.prototype, {
+  hset: function (field, value) {
+    var map = this._map;
+    var existed = _.has(map, field);
+    map[field] = value;
+    return existed ? 0 : 1;
+  },
+  hsetnx: function (field, value) {
+    var map = this._map;
+    var existed = _.has(map, field);
+    if (! existed)
+      map[field] = value;
+    return existed ? 0 : 1;
+  },
+  hget: function (field) {
+    return this._map[field];
+  },
+  hkeys: function () {
+    return _.keys(this._map);
+  },
+  hvals: function () {
+    return _.values(this._map);
+  },
+  hgetall: function () {
+    return _.clone(this._map);
+  },
+  hincrby: function (field, delta) {
+    var val = this._map[field] || "0";
+    var newVal = val |0;
+
+    if (val !== newVal.toString())
+      throw new Error("Hash value is not an integer.");
+
+    this._map[field] = (newVal - -delta).toString();
+    return this._map[field];
+  },
+  hincrbyfloat: function (field, delta) {
+    var val = this._map[field] || "0";
+    var newVal = parseFloat(val);
+
+    if (isNaN(newVal))
+      throw new Error("Hash value is not a valid float.");
+
+    this._map[field] = (newVal - -delta).toString();
+    return this._map[field];
+  },
+  hdel: function (/* args */) {
+    var args = _.toArray(arguments);
+    var map = this._map;
+    return _.reduce(args, function (removed, field) {
+      if (! _.has(map, field))
+        return removed;
+      delete map[field];
+      return removed + 1;
+    }, 0);
+  },
+  hmset: function (/* args */) {
+    var args = _.toArray(arguments);
+    var map = this._map;
+    if (args.length === 1 && _.isObject(args[0])) {
+      // a short hand form of a map
+      _.each(args[0], function (value, key) {
+        map[key] = value;
+      });
+    } else {
+      // a traditional syntax with key-value pairs
+      for (var i = 0; i < args.length; i += 2) {
+        var key = args[i];
+        var value = args[i + 1];
+        map[key] = value;
+      }
+    }
+    return "OK";
+  },
+  hmget: function (/* args */) {
+    var args = _.toArray(arguments);
+    var map = this._map;
+    return _.map(args, function (field) {
+      return map[field];
+    });
+  },
+  hlen: function () {
+    return this.hkeys().length;
+  },
+  // XXX no hscan?
+  type: function () { return "hash"; },
+  clone: function () {
+    var copy = new Miniredis.Hash;
+    // XXX no deep cloning
+    copy._map = this._map;
+    return copy;
+  },
+  _isEmpty: function () { return _.isEmpty(this._map); }
+});
+
+_.each(["hset", "hsetnx", "hget", "hkeys", "hvals", "hgetall", "hincrby",
+        "hincrbyfloat", "hdel", "hmset", "hmget", "hlen"],
+       function (method) {
+         Miniredis.RedisStore.prototype[method] = function (key/*, args */) {
+           var self = this;
+           var args = _.toArray(arguments).slice(1);
+           var cb = maybePopCallback(args);
+
+           if (! self._has(key))
+             self._set(key, new Miniredis.Hash);
+
+           var hash = self._get(key);
+           if (! (hash instanceof Miniredis.Hash)) {
+             throwIncorrectKindOfValueError(cb);
+             return;
+           }
+
+           var copy = hash.clone();
+           try {
+             var res = Miniredis.Hash.prototype[method].apply(copy, args);
+           } catch (err) {
+             callInCallbackOrThrow(err, cb);
+             return;
+           }
+
+           self._set(key, copy);
+
+           // a special case for removing the last field in a hash
+           if (copy._isEmpty())
+             self._remove(key);
+
            return callInCallbackAndReturn(res, cb);
          };
        });
