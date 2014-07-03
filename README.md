@@ -137,9 +137,18 @@ Right now these Redis commands are implemented and available:
 
 ### On Hashes
 
+- hset
+- hsetnx
+- hget
+- hkeys
+- hvals
 - hgetall
-- hmset
 - hincrby
+- hincrbyfloat
+- hdel
+- hmset
+- hmget
+- hlen
 
 ### On Lists
 
