@@ -838,18 +838,21 @@ _.each(["lpush", "rpush", "lpop", "rpop", "lindex", "linsert", "lrange",
          Miniredis.RedisStore.prototype[method] = function (key/*, args */) {
            var self = this;
            var args = _.toArray(arguments).slice(1);
+           var cb = maybePopCallback(args);
 
            if (! self._has(key))
              self._set(key, new Miniredis.List);
 
            var list = self._get(key);
-           if (! (list instanceof Miniredis.List))
-             throwIncorrectKindOfValueError();
+           if (! (list instanceof Miniredis.List)) {
+             throwIncorrectKindOfValueError(cb);
+             return;
+           }
 
            var copy = list.clone();
            var res = Miniredis.List.prototype[method].apply(copy, args);
            self._set(key, copy);
-           return res;
+           return callInCallbackAndReturn(res, cb);
          };
        });
 
