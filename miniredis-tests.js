@@ -96,3 +96,37 @@ Tinytest.add("miniredis - lists operations", function (test) {
   // XXX implement and test LREM
 });
 
+Tinytest.add("miniredis - hashes operations", function (test) {
+  var S = new Miniredis.RedisStore();
+  S.hsetnx("h", "a-field", "a-value");
+  test.equal(S.hget("h", "a-field"), "a-value");
+  S.hsetnx("h", "a-field", "b-value");
+  test.equal(S.hget("h", "a-field"), "a-value");
+  S.hset("h", "a-field", "b-value");
+  test.equal(S.hget("h", "a-field"), "b-value");
+  test.throws(function () { S.get("h"); }, /wrong kind/);
+  S.hset("h", "b-field", "c-value");
+  test.equal(S.hget("h", "b-field"), "c-value");
+  test.equal(S.hkeys("h"), ["a-field", "b-field"]);
+  test.equal(S.hvals("h"), ["b-value", "c-value"]);
+  test.equal(S.hgetall("h"), {"a-field": "b-value", "b-field": "c-value"});
+  S.hset("h", "c-field", "42");
+  S.hincrby("h", "c-field", "13");
+  S.hdel("h", "a-field", "b-field");
+  test.equal(S.hgetall("h"), {"c-field": "55"});
+  S.hincrbyfloat("h", "c-field", "0.5");
+  test.equal(S.hgetall("h"), {"c-field": "55.5"});
+  S.hmset("h", { "A": "A", "B": "B" });
+  test.equal(S.hgetall("h"), {"c-field": "55.5", "A": "A", "B": "B"});
+  S.hmset("h", "A", "a", "C", "c");
+  test.equal(S.hgetall("h"), {"c-field": "55.5", "A": "a", "B": "B", "C": "c"});
+  test.equal(S.hlen("h"), 4);
+  test.equal(S.hmget("h", "A", "B"), ["a", "B"]);
+
+  // after deleting everyting from the hash, the whole hash is removed and we
+  // can set it to anything
+  S.hdel("h", "A", "B", "C", "c-field");
+  S.set("h", "str");
+  test.equal(S.get("h"), "str");
+});
+
