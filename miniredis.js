@@ -21,15 +21,6 @@ Miniredis.Cursor = function (redisStore, pattern) {
   self.pattern = pattern;
 };
 
-// XXX Not clear if we should forward these or just use the RedisStore
-_.each(['keys', 'hgetall', 'hmset', 'hincrby', 'del'], function (name) {
-  Miniredis.Cursor.prototype[name] = function (/* arguments */) {
-    var self = this;
-    var args = _.toArray(arguments);
-    return self.redisStore[name].apply(self.redisStore, args);
-  }
-});
-
 // returns the position where x should be inserted in a sorted array
 var insPos = function (arr, x) {
   var l = 0, r = arr.length - 1;
