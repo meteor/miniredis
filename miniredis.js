@@ -795,20 +795,28 @@ _.each(["lpush", "rpush", "lpop", "rpop", "lindex", "linsert", "lrange",
 Miniredis.Hash = function () {
   var self = this;
   self._map = {};
+  self._didChange = false;
 };
 
 _.extend(Miniredis.Hash.prototype, {
   hset: function (field, value) {
     var map = this._map;
     var existed = _.has(map, field);
+
+    if (! existed || map[field] !== value)
+      this._didChange = true;
+
     map[field] = value;
     return existed ? 0 : 1;
   },
   hsetnx: function (field, value) {
     var map = this._map;
     var existed = _.has(map, field);
-    if (! existed)
+    if (! existed) {
       map[field] = value;
+      this._didChange = true;
+    }
+
     return existed ? 0 : 1;
   },
   hget: function (field) {
@@ -824,49 +832,62 @@ _.extend(Miniredis.Hash.prototype, {
     return _.clone(this._map);
   },
   hincrby: function (field, delta) {
-    var val = this._map[field] || "0";
-    var newVal = val |0;
+    var val = this._map[field];
+    var newVal = (val || "0") |0;
 
     if (val !== newVal.toString())
       throw new Error("Hash value is not an integer.");
 
     this._map[field] = (newVal - -delta).toString();
+
+    if (this._map[field] !== val)
+      this._didChange = true;
+
     return this._map[field];
   },
   hincrbyfloat: function (field, delta) {
-    var val = this._map[field] || "0";
-    var newVal = parseFloat(val);
+    var val = this._map[field];
+    var newVal = parseFloat(val || "0");
 
     if (isNaN(newVal))
       throw new Error("Hash value is not a valid float.");
 
     this._map[field] = (newVal - -delta).toString();
+
+    if (this._map[field] !== val)
+      this._didChange = true;
+
     return this._map[field];
   },
   hdel: function (/* args */) {
     var args = _.toArray(arguments);
-    var map = this._map;
+    var self = this;
     return _.reduce(args, function (removed, field) {
-      if (! _.has(map, field))
+      if (! _.has(self._map, field))
         return removed;
-      delete map[field];
+      delete self._map[field];
+      self._didChange = true;
       return removed + 1;
     }, 0);
   },
   hmset: function (/* args */) {
     var args = _.toArray(arguments);
-    var map = this._map;
+    var self = this;
+    var map = self._map;
+
+    var changeFn = function (value, key) {
+      self.hset(key, value);
+    };
+
     if (args.length === 1 && _.isObject(args[0])) {
       // a short hand form of a map
-      _.each(args[0], function (value, key) {
-        map[key] = value;
-      });
+      _.each(args[0], changeFn);
     } else {
       // a traditional syntax with key-value pairs
-      for (var i = 0; i < args.length; i += 2) {
+      for (var i = 0; i + 1 < args.length; i += 2) {
         var key = args[i];
         var value = args[i + 1];
-        map[key] = value;
+        changeFn(value, key);
       }
     }
     return "OK";
@@ -904,20 +925,24 @@ _.each(["hset", "hsetnx", "hget", "hkeys", "hvals", "hgetall", "hincrby",
            var args = _.toArray(arguments).slice(1);
            var cb = maybePopCallback(args);
 
+           var hash = self._get(key);
+
            if (! self._has(key)) {
-             if (_.contains(["hget", "hkeys", "hvals", "hgetall", "hmget"], method)) {
+             if (_.contains(["hget", "hkeys", "hvals", "hgetall"], method)) {
                return callInCallbackAndReturn(undefined, cb);
              }
-             self._set(key, new Miniredis.Hash);
+             hash = new Miniredis.Hash;
            }
 
-           var hash = self._get(key);
            if (! (hash instanceof Miniredis.Hash)) {
              throwIncorrectKindOfValueError(cb);
              return;
            }
 
-           var copy = hash.clone();
+           var copy = hash;
+
+           copy = hash.clone();
+
            try {
              var res = Miniredis.Hash.prototype[method].apply(copy, args);
            } catch (err) {
@@ -925,7 +950,9 @@ _.each(["hset", "hsetnx", "hget", "hkeys", "hvals", "hgetall", "hincrby",
              return;
            }
 
-           self._set(key, copy);
+           if (copy._didChange)
+             self._set(key, copy);
+           copy._didChange = false;
 
            // a special case for removing the last field in a hash
            if (copy._isEmpty())
