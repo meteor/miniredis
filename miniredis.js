@@ -950,7 +950,7 @@ _.each(["hset", "hsetnx", "hget", "hkeys", "hvals", "hgetall", "hincrby",
              return;
            }
 
-           if (copy._didChange)
+           if (copy._didChange && ! copy._isEmpty())
              self._set(key, copy);
            copy._didChange = false;
 
