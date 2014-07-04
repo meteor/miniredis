@@ -25,7 +25,7 @@ var redis = new Miniredis.RedisStore;
 redis.set("key-1-1", "foo");
 
 Deps.autorun(function () {
-  console.log(_.pluck(redis.matching("key-1-*").fetch()));
+  console.log(_.pluck(redis.matching("key-1-*").fetch(), "value"));
 });
 // prints ["foo"]
 
