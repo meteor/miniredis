@@ -122,6 +122,8 @@ Tinytest.add("miniredis - hashes operations", function (test) {
   test.equal(S.hgetall("h"), {"c-field": "55.5", "A": "a", "B": "B", "C": "c"});
   test.equal(S.hlen("h"), 4);
   test.equal(S.hmget("h", "A", "B"), ["a", "B"]);
+  test.equal(S.hexists("h", "A"), 1);
+  test.equal(S.hexists("h", "e"), 0);
 
   // after deleting everyting from the hash, the whole hash is removed and we
   // can set it to anything

@@ -348,7 +348,7 @@ _.extend(Miniredis.RedisStore.prototype, {
       if (_.isString(value))
         res.push({ key: key, value: value });
       else if (_.isObject(value))
-        res.push({ key: key, value: value.toArray() });
+        res.push({ key: key, value: value.toPlain() });
       else {
         callInCallbackOrThrow(new Error("Unknown type"), cb);
         thrown = true;
@@ -749,7 +749,7 @@ _.extend(Miniredis.List.prototype, {
     return this._list.length;
   },
   type: function () { return "list"; },
-  toArray: function () { return this._list.slice(0); },
+  toPlain: function () { return this._list.slice(0); },
   clone: function () {
     var list = new Miniredis.List();
     list._list = _.clone(this._list);
@@ -881,6 +881,9 @@ _.extend(Miniredis.Hash.prototype, {
   hlen: function () {
     return this.hkeys().length;
   },
+  hexists: function (field) {
+    return _.has(this._map, field) ? 1 : 0;
+  },
   // XXX no hscan?
   type: function () { return "hash"; },
   clone: function () {
@@ -889,19 +892,24 @@ _.extend(Miniredis.Hash.prototype, {
     copy._map = this._map;
     return copy;
   },
+  toPlain: function () { return this._map; },
   _isEmpty: function () { return _.isEmpty(this._map); }
 });
 
 _.each(["hset", "hsetnx", "hget", "hkeys", "hvals", "hgetall", "hincrby",
-        "hincrbyfloat", "hdel", "hmset", "hmget", "hlen"],
+        "hincrbyfloat", "hdel", "hmset", "hmget", "hlen", "hexists"],
        function (method) {
          Miniredis.RedisStore.prototype[method] = function (key/*, args */) {
            var self = this;
            var args = _.toArray(arguments).slice(1);
            var cb = maybePopCallback(args);
 
-           if (! self._has(key))
+           if (! self._has(key)) {
+             if (_.contains(["hget", "hkeys", "hvals", "hgetall", "hmget"], method)) {
+               return callInCallbackAndReturn(undefined, cb);
+             }
              self._set(key, new Miniredis.Hash);
+           }
 
            var hash = self._get(key);
            if (! (hash instanceof Miniredis.Hash)) {

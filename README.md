@@ -149,6 +149,7 @@ Right now these Redis commands are implemented and available:
 - hmset
 - hmget
 - hlen
+- hexists
 
 ### On Lists
 
