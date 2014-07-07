@@ -265,8 +265,6 @@ _.extend(Miniredis.RedisStore.prototype, {
       } else {
         self._notifyObserves(key, 'changed', value, oldValue);
       }
-      // XXX: Redis keyspace notifications don't really differentiate between added vs changed...
-      self._notifyObserves(key, 'updated', value);
     }
   },
 
@@ -309,8 +307,6 @@ _.extend(Miniredis.RedisStore.prototype, {
       if (event === "changed") {
         obs[event] && obs[event]({ _id: key, value: value },
                                  { _id: key, value: oldValue });
-      } else if (event === "updated") {
-        obs[event] && obs[event]({ _id: key, value: value});
       } else {
         obs[event] && obs[event]({ _id: key, value: value });
       }
