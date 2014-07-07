@@ -792,9 +792,9 @@ _.each(["lpush", "rpush", "lpop", "rpop", "lindex", "linsert", "lrange",
        });
 
 // Hash implementation
-Miniredis.Hash = function () {
+Miniredis.Hash = function (map) {
   var self = this;
-  self._map = {};
+  self._map = map || {};
   self._didChange = false;
 };
 
@@ -906,16 +906,27 @@ _.extend(Miniredis.Hash.prototype, {
     return _.has(this._map, field) ? 1 : 0;
   },
   // XXX no hscan?
+
+  // Miniredis data-structure interface
   type: function () { return "hash"; },
   clone: function () {
-    var copy = new Miniredis.Hash;
-    // XXX no deep cloning
-    copy._map = this._map;
+    var copy = new Miniredis.Hash(_.clone(this._map));
     return copy;
   },
   toPlain: function () { return this._map; },
-  _isEmpty: function () { return _.isEmpty(this._map); }
+  _isEmpty: function () { return _.isEmpty(this._map); },
+
+  // EJSONable type interface
+  typeName: function () { return "redis-hash" },
+  toJSONValue: function () {
+    return JSON.stringify(this._map);
+  }
 });
+
+EJSON.addType("redis-hash",  function (map) {
+  return new Miniredis.Hash(JSON.parse(map));
+});
+
 
 _.each(["hset", "hsetnx", "hget", "hkeys", "hvals", "hgetall", "hincrby",
         "hincrbyfloat", "hdel", "hmset", "hmget", "hlen", "hexists"],
