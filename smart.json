@@ -3,7 +3,7 @@
   "description": "Partial implementation of Redis API on top of in-memory representation in JS",
   "homepage": "https://github.com/meteor/miniredis",
   "author": "Justin Santa Barbara, Slava Kim",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "git": "https://github.com/meteor/miniredis.git",
   "packages": {}
 }
