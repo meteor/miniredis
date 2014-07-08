@@ -101,6 +101,13 @@ Template.orderedList.listItems = function () {
 };
 ```
 
+## Known Issue
+
+- on Meteor 0.8.2 returning a miniredis cursor from a template helper Blaze will
+  not observe it properly. It is fixed on the `devel` branch and will be
+  released in next Meteor version. To workaround it, return a fetched array from
+  cursor.
+
 ## Redis API compatibility
 
 To support [Meteor](https://www.meteor.com)'s latency compensation,
