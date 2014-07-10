@@ -147,13 +147,18 @@ _.extend(Miniredis.Cursor.prototype, {
     }
 
     return self.observe(translateToChangesCallbacks(callbacks));
+  },
+  _getCollectionName: function () {
+    var self = this;
+    return self.redisStore.name;
   }
 });
 
 // A main store class
-Miniredis.RedisStore = function () {
+Miniredis.RedisStore = function (name) {
   var self = this;
 
+  self.name = name;
   // main key-value storage
   self._kv = new IdMap(EJSON.stringify, EJSON.parse);
   // fine-grained reactivity per key
