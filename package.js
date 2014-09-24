@@ -1,12 +1,13 @@
 Package.describe({
   summary: "Meteor's client-side datastore: a port of Redis to Javascript",
-  version: "1.0.1",
+  version: "1.0.0",
   name: "slava:miniredis",
   git: "https://github.com/meteor/miniredis"
 });
 
 Package.on_use(function (api) {
   api.export('Miniredis');
+  api.versionsFrom('0.9.2.2');
   api.use(['id-map', 'tracker', 'underscore', 'random', 'ejson']);
   api.add_files(['cow.js', 'miniredis.js']);
 });
