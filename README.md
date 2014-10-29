@@ -9,9 +9,9 @@ redis.set("key-1-1", "foo");
 redis.set("key-1-2", "bar");
 ```
 
-You can install it with meteorite:
+You can install it by running:
 
-    mrt install miniredis
+    meteor add slava:miniredis
 
 ## Reactivity
 
