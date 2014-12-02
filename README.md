@@ -186,6 +186,9 @@ Right now these Redis commands are implemented and available:
 - sunion
 - sdiff
 - sinter
+- sunionstore
+- sdiffstore
+- sinterstore
 
 ## License
 

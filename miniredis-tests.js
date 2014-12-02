@@ -160,6 +160,17 @@ Tinytest.add("miniredis - sets operations", function (test) {
   test.equal(_.contains(sunionRes, 'c-value'), true);
   test.equal(_.contains(sunionRes, 'z-value'), true);
 
+  S.sadd("union1", "1-value", "2-value");
+  S.sadd("union2", "3-value");
+  S.sadd("union3", "4-value");
+  test.equal(S.sunionstore('unionstoreSet', "union1", "union2", "union3"), 4);
+  test.equal(S.scard('unionstoreSet'), 4);
+  var unionStoreMembers = S.smembers('unionstoreSet');
+  test.equal(_.contains(unionStoreMembers, '1-value'), true);
+  test.equal(_.contains(unionStoreMembers, '2-value'), true);
+  test.equal(_.contains(unionStoreMembers, '3-value'), true);
+  test.equal(_.contains(unionStoreMembers, '4-value'), true);
+
   var sdiffRes = S.sdiff("myset", "otherset");
   test.equal(sdiffRes.length, 2);
   test.equal(_.contains(sdiffRes, 'b-value'), true);
@@ -167,6 +178,17 @@ Tinytest.add("miniredis - sets operations", function (test) {
   S.sadd("myset", "z-value");
   sdiffRes = S.sdiff("otherset", "myset");
   test.equal(sdiffRes, []);
+
+  S.sadd("diff1", "1-value", "2-value", "3-value", "4-value");
+  S.sadd("diff2", "1-value", "2-value");
+  S.sadd("diff3", "4-value");
+  test.equal(S.sdiffstore('diffstoreSet', "diff1", "diff2", "diff3"), 1);
+  test.equal(S.scard('diffstoreSet'), 1);
+  var diffStoreMembers = S.smembers('diffstoreSet');
+  test.equal(_.contains(diffStoreMembers, '3-value'), true);
+  test.equal(_.contains(diffStoreMembers, '1-value'), false);
+  test.equal(_.contains(diffStoreMembers, '2-value'), false);
+  test.equal(_.contains(diffStoreMembers, '4-value'), false);
 
   var members = S.smembers('myset');
   var srandmember = S.srandmember('myset');
@@ -218,4 +240,10 @@ Tinytest.add("miniredis - sets operations", function (test) {
   test.equal(_.contains(sinterRes, 'f-value'), true);
   test.equal(_.contains(sinterRes, 'h-value'), true);
   test.equal(_.contains(sinterRes, 'i-value'), false);
+
+  test.equal(S.sinterstore('intersetStore', 'myset', 'interset1', 'interset2'), 2);
+  test.equal(S.scard('intersetStore'), 2);
+  test.equal(_.contains(S.smembers('intersetStore'), 'f-value'), true);
+  test.equal(_.contains(S.smembers('intersetStore'), 'h-value'), true);
+  test.equal(_.contains(S.smembers('intersetStore'), 'i-value'), false);
 });

@@ -1124,6 +1124,22 @@ _.each(["sunion", "sdiff", "sinter"],
     };
   });
 
+_.each(["sunionstore", "sdiffstore", "sinterstore"],
+  function (method) {
+    Miniredis.RedisStore.prototype[method] = function (key/*, keys */) {
+      var self = this;
+      var args = _.toArray(arguments).slice(1);
+      var cb = maybePopCallback(args);
+      var baseMethod = method.substring(0, method.length-5);
+
+      var res = self[baseMethod].apply(self, args);
+      res.unshift(key);
+      self.sadd.apply(self, res);
+
+      return callInCallbackAndReturn(res.length-1, cb);
+    };
+  });
+
 Miniredis.RedisStore.prototype.smove = function (key, destination, value) {
   var self = this;
 
