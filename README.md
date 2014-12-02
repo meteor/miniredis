@@ -180,9 +180,12 @@ Right now these Redis commands are implemented and available:
 - smembers
 - sismember
 - scard
+- srandmember
+- smove
+- spop
 - sunion
 - sdiff
-- srandmember
+- sinter
 
 ## License
 

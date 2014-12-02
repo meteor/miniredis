@@ -189,4 +189,33 @@ Tinytest.add("miniredis - sets operations", function (test) {
   test.equal(S.srem('myset', 'b-value', 'c-value', 'q-value'), 2);
   test.equal(S.smembers('myset').length, 1);
   test.equal(_.contains(S.smembers("myset"), 'a-value'), true);
+
+
+  S.sadd('myset', "d-value", 'e-value');
+  test.equal(S.smove('myset', 'otherset', 'd-value'), 1);
+  test.equal(S.scard("myset"), 2);
+  test.equal(_.contains(S.smembers("myset"), 'd-value'), false);
+  test.equal(S.scard("otherset"), 3);
+  test.equal(_.contains(S.smembers("otherset"), 'd-value'), true);
+  test.equal(S.smove('myset', 'otherset', 'd-value'), 0);
+  test.equal(S.smove('myset', 'newset', 'e-value'), 1);
+  test.equal(S.scard("myset"), 1);
+  test.equal(_.contains(S.smembers("myset"), 'e-value'), false);
+  test.equal(S.scard("newset"), 1);
+  test.equal(_.contains(S.smembers("newset"), 'e-value'), true);
+
+  var oldMembers = S.smembers('otherset');
+  var popped = S.spop('otherset');
+  test.equal(_.contains(oldMembers, popped), true);
+  test.equal(_.contains(S.smembers('otherset'), popped), false);
+  test.equal(S.scard("otherset"), 2);
+
+  S.sadd('myset', 'f-value', 'g-value', 'h-value');
+  S.sadd('interset1', 'f-value', 'h-value', 'i-value');
+  S.sadd('interset2', 'f-value', 'h-value', 'i-value');
+  var sinterRes = S.sinter('myset', 'interset1', 'interset2');
+  test.equal(sinterRes.length, 2);
+  test.equal(_.contains(sinterRes, 'f-value'), true);
+  test.equal(_.contains(sinterRes, 'h-value'), true);
+  test.equal(_.contains(sinterRes, 'i-value'), false);
 });

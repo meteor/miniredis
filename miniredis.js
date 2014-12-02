@@ -1039,17 +1039,21 @@ Miniredis.Set.sdiff = function (setsMembers) {
   return _.difference(base, sub);
 };
 
+Miniredis.Set.sinter = function (setsMembers) {
+  return _.intersection.apply(_, setsMembers);
+};
+
 _.extend(Miniredis.Set.prototype, {
   smembers: function () {
     return (this._set.length > 0) ? this._set : undefined;
   },
   sadd: function (/* values */) {
-    var set = this._set;
+    var self = this;
     var values = _.invoke(arguments, "toString");
     var insertCount = 0;
     values.forEach(function(val) {
-      if (_.contains(set, val)) return;
-      set.push(val);
+      if (self.sismember(val)) return;
+      self._set.push(val);
       insertCount ++;
     });
     return insertCount;
@@ -1089,6 +1093,11 @@ _.extend(Miniredis.Set.prototype, {
     });
     return count;
   },
+  spop: function() {
+    var sample = this.srandmember();
+    this.srem(sample);
+    return sample;
+  },
   clone: function () {
     var set = new Miniredis.Set();
     set._set = _.clone(this._set);
@@ -1097,7 +1106,7 @@ _.extend(Miniredis.Set.prototype, {
 });
 
 
-_.each(["sunion", "sdiff"],
+_.each(["sunion", "sdiff", "sinter"],
   function (method) {
     Miniredis.RedisStore.prototype[method] = function (/* keys */) {
       var self = this;
@@ -1115,7 +1124,34 @@ _.each(["sunion", "sdiff"],
     };
   });
 
-_.each(["smembers", "sadd", "scard", "sismember", "srandmember", "srem"],
+Miniredis.RedisStore.prototype.smove = function (key, destination, value) {
+  var self = this;
+
+  if (! self._has(key)) return 0;
+
+  var set = self._get(key);
+  if (! (set instanceof Miniredis.Set)) {
+   throwIncorrectKindOfValueError(cb);
+   return 0;
+  }
+
+  if (! self._has(destination))
+   self._set(destination, new Miniredis.Set);
+
+  var dest = self._get(destination);
+  if (! (dest instanceof Miniredis.Set)) {
+   throwIncorrectKindOfValueError(cb);
+   return 0;
+  }
+
+  if (! set.sismember(value)) return 0;
+
+  set.srem(value);
+  dest.sadd(value);
+  return 1;
+};
+
+_.each(["smembers", "sadd", "scard", "sismember", "srandmember", "srem", "spop"],
   function (method) {
     Miniredis.RedisStore.prototype[method] = function (key/*, args */) {
       var self = this;
