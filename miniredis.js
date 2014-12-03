@@ -1089,6 +1089,8 @@ _.extend(Miniredis.Set.prototype, {
     this.srem(sample);
     return sample;
   },
+  type: function () { return "set"; },
+  toPlain: function () { return this._set; },
   clone: function () {
     var set = new Miniredis.Set();
     set._set = _.clone(this._set);
