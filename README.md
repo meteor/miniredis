@@ -173,7 +173,23 @@ Right now these Redis commands are implemented and available:
 - lpushx
 - rpushx
 
+### On Sets
+
+- sadd
+- srem
+- smembers
+- sismember
+- scard
+- srandmember
+- smove
+- spop
+- sunion
+- sdiff
+- sinter
+- sunionstore
+- sdiffstore
+- sinterstore
+
 ## License
 
 MIT (c) Meteor Development Group
-

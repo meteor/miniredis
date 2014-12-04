@@ -236,14 +236,15 @@ _.extend(Miniredis.RedisStore.prototype, {
   _keyDep: function (key) {
     var self = this;
 
-    if (! self._keyDependencies[key])
+    if (! self._keyDependencies[key]) {
       self._keyDependencies[key] = new Deps.Dependency();
-
-    if (Deps.active) {
-      // for future clean-up
-      Deps.onInvalidate(function () {
-        self._tryCleanUpKeyDep(key);
-      });
+    } else {
+      if (Deps.active) {
+        // for future clean-up
+        Deps.onInvalidate(function () {
+          self._tryCleanUpKeyDep(key);
+        });
+      }
     }
 
     return self._keyDependencies[key];
@@ -1014,3 +1015,197 @@ function patternToRegexp (pattern) {
 
 Miniredis.patternToRegexp = patternToRegexp;
 
+Miniredis.Set = function (set) {
+  this._set = set || [];
+  this._didChange = false;
+};
+
+Miniredis.Set.sunion = function (setsMembers) {
+  var flat = _.flatten(setsMembers);
+  var res = _.uniq(flat);
+  return res;
+};
+
+Miniredis.Set.sdiff = function (setsMembers) {
+  var base = setsMembers.shift();
+  var sub = _.flatten(setsMembers);
+  return _.difference(base, sub);
+};
+
+Miniredis.Set.sinter = function (setsMembers) {
+  return _.intersection.apply(_, setsMembers);
+};
+
+_.extend(Miniredis.Set.prototype, {
+  smembers: function () {
+    return (this._set.length > 0) ? this._set : undefined;
+  },
+  sadd: function (/* values */) {
+    var self = this;
+    var values = _.invoke(arguments, "toString");
+    var insertCount = 0;
+    values.forEach(function(val) {
+      if (self.sismember(val)) return;
+      self._set.push(val);
+      insertCount ++;
+    });
+    this._didChange = true;
+    return insertCount;
+  },
+  scard: function () {
+    return this._set.length;
+  },
+  sismember: function (value) {
+    var set = this._set;
+    return _.contains(set, value) ? 1 : 0;
+  },
+  srandmember: function (num) {
+    var sample;
+    var set = this._set;
+    if (num === undefined) {
+      sample = _.sample(set);
+    } else if (num < 0) {
+      var sample = [];
+      var num = Math.abs(num);
+      for (var i = 0; i < num; i++) {
+        sample.push(_.sample(set));
+      }
+    } else {
+      sample = _.sample(set, num);
+    }
+    return sample;
+  },
+  srem: function (/* values */) {
+    var self = this;
+    var values = _.invoke(arguments, "toString");
+    var count = 0;
+    values.forEach(function(val) {
+      var index = self._set.indexOf(val);
+      if (index === -1) return;
+      self._set.splice(index, 1);
+      count ++;
+    });
+    this._didChange = true;
+    return count;
+  },
+  spop: function() {
+    var sample = this.srandmember();
+    this.srem(sample);
+    return sample;
+  },
+  type: function () { return "set"; },
+  toPlain: function () { return this._set; },
+  _isEmpty: function () { return _.isEmpty(this._set); },
+  clone: function () {
+    var set = new Miniredis.Set();
+    set._set = _.clone(this._set);
+    return set;
+  },
+
+  // EJSONable type interface
+  typeName: function () { return "redis-set" },
+  toJSONValue: function () {
+    return JSON.stringify(this._set);
+  }
+});
+
+EJSON.addType("redis-set",  function (set) {
+  return new Miniredis.Set(JSON.parse(set));
+});
+
+
+_.each(["sunion", "sdiff", "sinter"],
+  function (method) {
+    Miniredis.RedisStore.prototype[method] = function (/* keys */) {
+      var self = this;
+      var keys = _.toArray(arguments);
+      var cb = maybePopCallback(keys);
+
+      var setsMembers = [];
+      keys.forEach(function(key) {
+        var members = self.smembers(key);
+        setsMembers.push(members);
+      });
+
+      var res = Miniredis.Set[method](setsMembers);
+      return callInCallbackAndReturn(res, cb);
+    };
+  });
+
+_.each(["sunionstore", "sdiffstore", "sinterstore"],
+  function (method) {
+    Miniredis.RedisStore.prototype[method] = function (key/*, keys */) {
+      var self = this;
+      var args = _.toArray(arguments).slice(1);
+      var cb = maybePopCallback(args);
+      var baseMethod = method.substring(0, method.length-5);
+
+      var res = self[baseMethod].apply(self, args);
+      res.unshift(key);
+      self.sadd.apply(self, res);
+
+      return callInCallbackAndReturn(res.length-1, cb);
+    };
+  });
+
+Miniredis.RedisStore.prototype.smove = function (key, destination, value) {
+  var self = this;
+
+  if (! self._has(key)) return 0;
+
+  var set = self._get(key);
+  if (! (set instanceof Miniredis.Set)) {
+   throwIncorrectKindOfValueError(cb);
+   return 0;
+  }
+
+  if (! self._has(destination))
+   self._set(destination, new Miniredis.Set);
+
+  var dest = self._get(destination);
+  if (! (dest instanceof Miniredis.Set)) {
+   throwIncorrectKindOfValueError(cb);
+   return 0;
+  }
+
+  if (! set.sismember(value)) return 0;
+
+  set.srem(value);
+  dest.sadd(value);
+
+  return 1;
+};
+
+_.each(["smembers", "sadd", "scard", "sismember", "srandmember", "srem", "spop"],
+  function (method) {
+    Miniredis.RedisStore.prototype[method] = function (key/*, args */) {
+      var self = this;
+      var args = _.toArray(arguments).slice(1);
+      var cb = maybePopCallback(args);
+
+      if (! self._has(key))
+       self._set(key, new Miniredis.Set);
+
+      var set = self._get(key);
+      if (! (set instanceof Miniredis.Set)) {
+       throwIncorrectKindOfValueError(cb);
+       return;
+      }
+
+      var copy = set;
+      copy = set.clone();
+
+      try {
+        var res = Miniredis.Set.prototype[method].apply(copy, args);
+      } catch (err) {
+        callInCallbackOrThrow(err, cb);
+        return;
+      }
+
+      if (copy._didChange && ! copy._isEmpty())
+        self._set(key, copy);
+      copy._didChange = false;
+
+      return callInCallbackAndReturn(res, cb);
+    };
+  });
