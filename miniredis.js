@@ -236,14 +236,15 @@ _.extend(Miniredis.RedisStore.prototype, {
   _keyDep: function (key) {
     var self = this;
 
-    if (! self._keyDependencies[key])
+    if (! self._keyDependencies[key]) {
       self._keyDependencies[key] = new Deps.Dependency();
-
-    if (Deps.active) {
-      // for future clean-up
-      Deps.onInvalidate(function () {
-        self._tryCleanUpKeyDep(key);
-      });
+    } else {
+      if (Deps.active) {
+        // for future clean-up
+        Deps.onInvalidate(function () {
+          self._tryCleanUpKeyDep(key);
+        });
+      }
     }
 
     return self._keyDependencies[key];
@@ -1014,8 +1015,9 @@ function patternToRegexp (pattern) {
 
 Miniredis.patternToRegexp = patternToRegexp;
 
-Miniredis.Set = function () {
-  this._set = [];
+Miniredis.Set = function (set) {
+  this._set = set || [];
+  this._didChange = false;
 };
 
 Miniredis.Set.sunion = function (setsMembers) {
@@ -1047,6 +1049,7 @@ _.extend(Miniredis.Set.prototype, {
       self._set.push(val);
       insertCount ++;
     });
+    this._didChange = true;
     return insertCount;
   },
   scard: function () {
@@ -1082,6 +1085,7 @@ _.extend(Miniredis.Set.prototype, {
       self._set.splice(index, 1);
       count ++;
     });
+    this._didChange = true;
     return count;
   },
   spop: function() {
@@ -1091,11 +1095,22 @@ _.extend(Miniredis.Set.prototype, {
   },
   type: function () { return "set"; },
   toPlain: function () { return this._set; },
+  _isEmpty: function () { return _.isEmpty(this._set); },
   clone: function () {
     var set = new Miniredis.Set();
     set._set = _.clone(this._set);
     return set;
+  },
+
+  // EJSONable type interface
+  typeName: function () { return "redis-set" },
+  toJSONValue: function () {
+    return JSON.stringify(this._set);
   }
+});
+
+EJSON.addType("redis-set",  function (set) {
+  return new Miniredis.Set(JSON.parse(set));
 });
 
 
@@ -1157,6 +1172,7 @@ Miniredis.RedisStore.prototype.smove = function (key, destination, value) {
 
   set.srem(value);
   dest.sadd(value);
+
   return 1;
 };
 
@@ -1176,9 +1192,20 @@ _.each(["smembers", "sadd", "scard", "sismember", "srandmember", "srem", "spop"]
        return;
       }
 
-      var copy = set.clone();
-      var res = Miniredis.Set.prototype[method].apply(copy, args);
-      self._set(key, copy);
+      var copy = set;
+      copy = set.clone();
+
+      try {
+        var res = Miniredis.Set.prototype[method].apply(copy, args);
+      } catch (err) {
+        callInCallbackOrThrow(err, cb);
+        return;
+      }
+
+      if (copy._didChange && ! copy._isEmpty())
+        self._set(key, copy);
+      copy._didChange = false;
+
       return callInCallbackAndReturn(res, cb);
     };
   });
